@@ -1,5 +1,7 @@
 #!/bin/bash
 
+
+
 SKIP_GENERATE=0
 
 POSITIONAL=()
@@ -9,6 +11,7 @@ key="$1"
 
 case $key in
 	-s|--skip-generate)
+	SKIP_GENERATE=1
 	shift
 	;;
 	*)
@@ -26,9 +29,11 @@ fi
 
 SCRIPT_DIR="$(cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)"
 
-PROJECT_NAME=$(basename "$SCRIPT_DIR")
+PROJECT_DIR=${SCRIPT_DIR}
 
-PROJECT_FILE="$SCRIPT_DIR/$PROJECT_NAME.uproject"
+PROJECT_NAME=$(basename "$PROJECT_DIR")
+
+PROJECT_FILE="$PROJECT_DIR/$PROJECT_NAME.uproject"
 
 if [ ! -f "$PROJECT_FILE" ]; then
 	>&2 echo "[ERROR] Put this script in your Unreal Engine Project folder."
@@ -42,31 +47,64 @@ fi
 
 echo "-- Generating UE4 Project"
 
-$UE4DIR/GenerateProjectFiles.sh -kdevelopfile -project="${PROJECT_FILE}" -game -engine -editor
+if [ "$SKIP_GENERATE" -eq "0" ]; then
+	$UE4DIR/GenerateProjectFiles.sh -kdevelopfile -project="${PROJECT_FILE}" -game -engine -editor
+fi
+
+DEPENDENCIES_JSON=$(cat "${PROJECT_NAME}.uproject" | jq ".Modules[0].AdditionalDependencies")
+DEPENDENCIES_JSON_LINES=$(echo "${DEPENDENCIES_JSON}" | wc -l)
+NUM_DEPENDENCIES=$(( $DEPENDENCIES_JSON_LINES - 2 ))
+DEPENDENCIES=$(echo "${DEPENDENCIES_JSON}" | head -n -1 | tail -n ${NUM_DEPENDENCIES} | sed -E "s,[ \t]+\"([A-Za-z0-9_]+)\"[,]?,\1,g" )
+
+echo "-- Found $NUM_DEPENDENCIES dependencies"
 
 # Replace wrong project source locations
 
 echo "-- Fixing Generated Includes"
 
 PROJECT_INCLUDE_DIRS="
-${SCRIPT_DIR}/Intermediate/Build/Linux/B4D820EA/UE4Editor/Inc/$PROJECT_NAME
-${SCRIPT_DIR}/Source/$PROJECT_NAME
-${SCRIPT_DIR}/Source/$PROJECT_NAME/Public
-"
+${PROJECT_DIR}/Intermediate/Build/Linux/B4D820EA/UE4Editor/Inc/$PROJECT_NAME
+${PROJECT_DIR}/Source/$PROJECT_NAME
+${PROJECT_DIR}/Source/$PROJECT_NAME/Public"
 
 UE4_INCLUDE_DIRS=$(
-	cat "$SCRIPT_DIR/.kdev4/Includes.txt" |
-	sed -e "s,$UE4DIR/Source/$PROJECT_NAME,$SCRIPT_DIR/Source/$PROJECT_NAME,g"
+	cat "$PROJECT_DIR/.kdev4/Includes.txt" |
+	sed -e "s,$UE4DIR/Source/$PROJECT_NAME,$PROJECT_DIR/Source/$PROJECT_NAME,g"
 )
+
+IFS=$'\n'
+
+for dep in $DEPENDENCIES
+do
+	PLUGIN_PROJECT_DIR=$(find Plugins -name "${dep}.uplugin")
+	
+	if [ ! -z "${PLUGIN_PROJECT_DIR}" ]; then
+		PLUGIN_PROJECT_DIR=$(dirname ${PLUGIN_PROJECT_DIR})
+		
+		echo "    Found project plugin '${dep}' at '${PLUGIN_PROJECT_DIR}'"
+		
+		PROJECT_INCLUDE_DIRS="${PROJECT_INCLUDE_DIRS}
+${PROJECT_DIR}/${PLUGIN_PROJECT_DIR}/Source/${dep}
+${PROJECT_DIR}/${PLUGIN_PROJECT_DIR}/Source/${dep}/Public
+${PROJECT_DIR}/${PLUGIN_PROJECT_DIR}/Intermediate/Build/Linux/B4D820EA/UE4Editor/Inc/${dep}"
+
+# 		UE4_INCLUDE_DIRS=$(sed -E "s,${UE4DIR}/Engine/Plugins/${PLUGIN_PROJECT_NAME}/,${PROJECT_DIR}/Plugins/${PLUGIN_PROJECT_NAME}}/,g")
+	else
+		echo "    Found engine plugin '${dep}'"
+	fi
+done
 
 NEWKDEV4INCLUDES=""
 
-IFS=$'\n'
 counter=0
 for line in $PROJECT_INCLUDE_DIRS
 do
-	counter=$(( $counter + 1 ))
-	NEWKDEV4INCLUDES="${NEWKDEV4INCLUDES}\n$counter=$line"
+	if [ -d "${line}" ]; then
+		counter=$(( $counter + 1 ))
+		NEWKDEV4INCLUDES="${NEWKDEV4INCLUDES}\n$counter=$line"
+	else
+		echo " Non-existant include directory: '${line}'"
+	fi
 done
 
 # Add UBT/UHT defines
@@ -201,7 +239,6 @@ HIERARCHICALLODUTILITIES
 MESHREDUCTIONINTERFACE
 ASSETTOOLS
 KISMETCOMPILER
-GAMEPLAYTASKS
 AIMODULE
 KISMET
 PHYSICSSQ
@@ -210,8 +247,12 @@ GEOMETRYCOLLECTIONCORE
 GEOMETRYCOLLECTIONSIMULATIONCORE
 CLOTHINGSYSTEMRUNTIMEINTERFACE
 AUDIOMIXERCORE
-GAMEPLAYABILITIES
 "
+
+for dep in $DEPENDENCIES
+do
+	PUBLIC_API_NAMES="${PUBLIC_API_NAMES}${dep^^}_VTABLE=DLLIMPORT_VTABLE\n${dep^^}_API=\n"
+done
 
 for name in $PUBLIC_API_NAMES
 do
