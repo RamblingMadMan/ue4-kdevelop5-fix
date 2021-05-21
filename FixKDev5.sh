@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if ! command -v COMMAND &> /dev/null
+if ! command -v jq &> /dev/null
 then
 	echo "[ERROR] Could not find 'jq'"
 	echo "    Install it with your package manager"
