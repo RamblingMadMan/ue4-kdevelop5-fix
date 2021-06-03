@@ -4,13 +4,19 @@ Fix for Unreal Engine 4 projects with KDevelop5 on Linux.
 
 This script should set everything up (including semantic highlighting and autocompletion) so you can simply code, build and run.
 
-Tested with UE4.26.2 on Ubuntu 20.04
+Tested with Unreal Engine 4.26.2 on KDE Neon 20.04
 
 Also check out the `.gitignore` file in this repo for a good base for your own Projects.
 
 ## Prerequisites
 
 You must have already [compiled Unreal Engine](https://docs.unrealengine.com/en-US/SharingAndReleasing/Linux/BeginnerLinuxDeveloper/SettingUpAnUnrealWorkflow/index.html) and created a project with the editor.
+
+### Dependencies
+
+A single dependency is required for parsing the Unreal project file.
+
+- jq
 
 ## Usage
 

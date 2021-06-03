@@ -36,7 +36,9 @@ SCRIPT_DIR="$(cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)"
 
 PROJECT_DIR=${SCRIPT_DIR}
 
-PROJECT_NAME=$(basename "$PROJECT_DIR")
+FOLDER_NAME=$(basename "$PROJECT_DIR")
+
+PROJECT_NAME=$(ls "${PROJECT_DIR}" | grep ".uproject" | sed "s,.uproject,,")
 
 PROJECT_FILE="$PROJECT_DIR/$PROJECT_NAME.uproject"
 
@@ -256,7 +258,8 @@ AUDIOMIXERCORE
 
 for dep in $DEPENDENCIES
 do
-	PUBLIC_API_NAMES="${PUBLIC_API_NAMES}${dep^^}_VTABLE=DLLIMPORT_VTABLE\n${dep^^}_API=\n"
+	PUBLIC_API_NAMES="${PUBLIC_API_NAMES}${dep^^}
+"
 done
 
 for name in $PUBLIC_API_NAMES
@@ -336,10 +339,11 @@ isExecutable=true"
 
 echo "-- Writing changes to disk"
 
-mv "$SCRIPT_DIR/.kdev4/$PROJECT_NAME.kdev4" "$SCRIPT_DIR/.kdev4/$PROJECT_NAME.kdev4.bak"
+mv "$PROJECT_DIR/$PROJECT_NAME.kdev4" "$PROJECT_DIR/$FOLDER_NAME.kdev4"
+mv "$PROJECT_DIR/.kdev4/$PROJECT_NAME.kdev4" "$PROJECT_DIR/.kdev4/$PROJECT_NAME.kdev4.bak"
 
 # Write new project file to disk
 
-echo -e "${NEWPROJECTFILE}" > "$SCRIPT_DIR/.kdev4/$PROJECT_NAME.kdev4"
+echo -e "${NEWPROJECTFILE}" > "$PROJECT_DIR/.kdev4/$FOLDER_NAME.kdev4"
 
 echo "-- Done"
