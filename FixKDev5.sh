@@ -28,15 +28,6 @@ esac
 done
 set -- "${POSITIONAL[@]}"
 
-if [ -f "$UE4_DESKTOP_FILE" ]; then
-	ue4_path_val=$(cat "$UE4_DESKTOP_FILE" | grep "Path=")
-	ue4_path=$(echo "$ue4_path_val" | sed -Ee "s,(Path=)|(/Engine/Binaries/Linux),,g")
-	echo "$ue4_path"
-else
-	>&2 echo "[Error] Could not find UnrealEngine 4"
-	exit 1
-fi
-
 UE4_DESKTOP_FILE="$HOME/.local/share/applications/com.epicgames.UnrealEngineEditor.desktop"
 
 if [ -z "$UE4DIR" ]; then
@@ -307,7 +298,7 @@ do
 	DEFINES="${DEFINES}${name}_VTABLE=DLLIMPORT_VTABLE\n${name}_API=\n"
 done
 
-NEWDEFINES=$(cat "$SCRIPT_DIR/.kdev4/Defines.txt")
+NEWDEFINES=$(cat "$PROJECT_DIR/.kdev4/Defines.txt")
 NEWDEFINES="${DEFINES}${NEWDEFINES}"
 
 # Replace wrong executable locations
@@ -316,17 +307,17 @@ echo "-- Fixing Generated KDevelop Project"
 
 # Get editor configuration number
 EDITORCONFIG=$(
-	cat "$SCRIPT_DIR/.kdev4/$PROJECT_NAME.kdev4" |
+	cat "$PROJECT_DIR/.kdev4/$PROJECT_NAME.kdev4" |
 	grep -x -B 2 "Title=techtatorshipEditor" 2>&1 | head -n 1 |
 	sed 's/[^0-9]*//g'
 )
 
 NEWPROJECTFILE=$(
-	cat "$SCRIPT_DIR/.kdev4/$PROJECT_NAME.kdev4" |
+	cat "$PROJECT_DIR/.kdev4/$PROJECT_NAME.kdev4" |
 	sed -e "s,Executable=make,Executable=file:///usr/bin/make,g" |
 	sed -e "s,Executable=bash,Executable=file:///usr/bin/bash,g" |
 	sed -e "s,Executable=Engine,Executable=file://$UE4DIR/Engine,g" |
-	sed -e "s,Arguments=Engine,Arguments=$UE4DIR/Engine,g" |
+	sed -e "s,Arguments=Engine,Arguments=\"$UE4DIR/Engine\",g" |
 	sed -e "s,CurrentConfiguration=BuildConfig0,CurrentConfiguration=BuildConfig$EDITORCONFIG," # Set editor as current config
 )
 
@@ -379,7 +370,10 @@ isExecutable=true"
 
 echo "-- Writing changes to disk"
 
-mv "$PROJECT_DIR/$PROJECT_NAME.kdev4" "$PROJECT_DIR/$FOLDER_NAME.kdev4"
+if [ "$PROJECT_NAME" != "$FOLDER_NAME" ]; then
+	mv "$PROJECT_DIR/$PROJECT_NAME.kdev4" "$PROJECT_DIR/$FOLDER_NAME.kdev4"
+fi
+
 mv "$PROJECT_DIR/.kdev4/$PROJECT_NAME.kdev4" "$PROJECT_DIR/.kdev4/$PROJECT_NAME.kdev4.bak"
 
 # Write new project file to disk
