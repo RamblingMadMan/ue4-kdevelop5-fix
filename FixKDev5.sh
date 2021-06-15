@@ -28,8 +28,47 @@ esac
 done
 set -- "${POSITIONAL[@]}"
 
+if [ -f "$UE4_DESKTOP_FILE" ]; then
+	ue4_path_val=$(cat "$UE4_DESKTOP_FILE" | grep "Path=")
+	ue4_path=$(echo "$ue4_path_val" | sed -Ee "s,(Path=)|(/Engine/Binaries/Linux),,g")
+	echo "$ue4_path"
+else
+	>&2 echo "[Error] Could not find UnrealEngine 4"
+	exit 1
+fi
+
+UE4_DESKTOP_FILE="$HOME/.local/share/applications/com.epicgames.UnrealEngineEditor.desktop"
+
 if [ -z "$UE4DIR" ]; then
-	UE4DIR="$HOME/UnrealEngine"
+	if [ -f "$UE4_DESKTOP_FILE" ]; then
+		ue4_path_val=$(cat "$UE4_DESKTOP_FILE" | grep "Path=")
+		UE4DIR=$(echo "$ue4_path_val" | sed -Ee "s,(Path=)|(/Engine/Binaries/Linux),,g")
+	else
+		SEARCH_DIRS=("$HOME" "$HOME/Epic" "$HOME/EpicGames" "$HOME/Epic Games")
+		
+		for search_dir in ${SEARCH_DIRS[@]}
+		do
+			do_break=false
+			
+			for found_dir in "$search_dir/UnrealEngine*"
+			do
+				if [ -d "$found_dir" ]; then
+					UE4DIR="$found_dir"
+					do_break=true
+					break
+				fi
+			done
+			
+			if $do_break; then break; fi
+		done
+		
+		if [ -z "$UE4DIR" ]; then
+			>&2 echo "[Error] Could not find UnrealEngine 4"
+			>&2 echo "    Try manually setting the UE4DIR environment variable"
+			>&2 echo "    by appending the command with UE4DIR=/path/to/UnrealEngine"
+			exit 1
+		fi
+	fi
 fi
 
 SCRIPT_DIR="$(cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)"
@@ -43,19 +82,20 @@ PROJECT_NAME=$(ls "${PROJECT_DIR}" | grep ".uproject" | sed "s,.uproject,,")
 PROJECT_FILE="$PROJECT_DIR/$PROJECT_NAME.uproject"
 
 if [ ! -f "$PROJECT_FILE" ]; then
-	>&2 echo "[ERROR] Put this script in your Unreal Engine Project folder."
+	>&2 echo "[ERROR] Put this script in your root project folder."
 	exit 1
 fi
 
 if [ ! -f "$UE4DIR/GenerateProjectFiles.sh" ]; then
-	>&2 echo "[ERROR] Set UE4DIR or symlink your UnrealEngine 4 root dir to ~/UnrealEngine"
+	>&2 echo "[ERROR] Could not find 'GenerateProjectFiles.sh'"
+	>&2 echo "    Try setting UE4DIR or symlinking your UnrealEngine 4 root dir to ~/UnrealEngine"
 	exit 1
 fi
 
 echo "-- Generating UE4 Project"
 
 if [ "$SKIP_GENERATE" -eq "0" ]; then
-	$UE4DIR/GenerateProjectFiles.sh -kdevelopfile -project="${PROJECT_FILE}" -game -engine -editor
+	"$UE4DIR/GenerateProjectFiles.sh" -kdevelopfile -project="${PROJECT_FILE}" -game -engine -editor
 fi
 
 DEPENDENCIES_JSON=$(cat "${PROJECT_NAME}.uproject" | jq ".Modules[0].AdditionalDependencies")

@@ -26,6 +26,9 @@ perf.data*
 *.kdevses
 .*kate-swp
 
+# IntelliJ related files
+.idea
+
 # Visual Studio 2015 user specific files
 .vs/
 
