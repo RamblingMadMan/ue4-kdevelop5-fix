@@ -20,14 +20,17 @@ perf.data*
 # KDE Related files
 .directory
 .kdev4
+.kdev_include_paths
+*.kdev_include_paths
+*.kdev4
 *.kdevelop
 *.kdevelop.filelist
 *.kdevelop.pcs
 *.kdevses
 .*kate-swp
 
-# IntelliJ related files
-.idea
+# Other IDE related files
+.idea/
 
 # Visual Studio 2015 user specific files
 .vs/

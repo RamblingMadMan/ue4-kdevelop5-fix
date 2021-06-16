@@ -126,7 +126,8 @@ ${PROJECT_DIR}/${PLUGIN_PROJECT_DIR}/Source/${dep}
 ${PROJECT_DIR}/${PLUGIN_PROJECT_DIR}/Source/${dep}/Public
 ${PROJECT_DIR}/${PLUGIN_PROJECT_DIR}/Intermediate/Build/Linux/B4D820EA/UE4Editor/Inc/${dep}"
 
-# 		UE4_INCLUDE_DIRS=$(sed -E "s,${UE4DIR}/Engine/Plugins/${PLUGIN_PROJECT_NAME}/,${PROJECT_DIR}/Plugins/${PLUGIN_PROJECT_NAME}}/,g")
+		#UE4_INCLUDE_DIRS=$(echo "$UE4_INCLUDE_DIRS" | sed -Ee "s,${UE4DIR}/${PLUGIN_PROJECT_DIR}/.+ \n,,g")
+		
 	else
 		echo "    Found engine plugin '${dep}'"
 	fi
@@ -337,7 +338,8 @@ NEWPROJECTFILE="${NEWPROJECTFILE}\n\n[CustomDefinesAndIncludes][ProjectPath0][De
 
 # Update includes
 
-echo -e "${UE4_INCLUDE_DIRS}" > ${SCRIPT_DIR}/.kdev_include_paths
+echo -e "${UE4_INCLUDE_DIRS}" > "$PROJECT_DIR/.kdev_include_paths"
+cp "$PROJECT_DIR/.kdev_include_paths" "$PROJECT_DIR/Source/.kdev_include_paths" # not sure why this copy is needed, but seems to fix missing headers errors
 
 NEWPROJECTFILE="${NEWPROJECTFILE}\n\n[CustomDefinesAndIncludes][ProjectPath0][Includes]${NEWKDEV4INCLUDES}"
 
