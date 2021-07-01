@@ -4,7 +4,7 @@ if ! command -v jq &> /dev/null
 then
 	echo "[ERROR] Could not find 'jq'"
 	echo "    Install it with your package manager"
-	exit 1
+	exit
 fi
 
 SKIP_GENERATE=0
@@ -90,37 +90,11 @@ if [ "$SKIP_GENERATE" -eq "0" ]; then
 fi
 
 DEPENDENCIES_JSON=$(cat "${PROJECT_NAME}.uproject" | jq ".Modules[0].AdditionalDependencies")
+DEPENDENCIES_JSON_LINES=$(echo "${DEPENDENCIES_JSON}" | wc -l)
+NUM_DEPENDENCIES=$(( $DEPENDENCIES_JSON_LINES - 2 ))
+DEPENDENCIES=$(echo "${DEPENDENCIES_JSON}" | head -n -1 | tail -n ${NUM_DEPENDENCIES} | sed -E "s,[ \t]+\"([A-Za-z0-9_]+)\"[,]?,\1,g" )
 
-if [ -z "$DEPENDENCIES_JSON" ] || [ "$DEPENDENCIES_JSON" = "null" ]; then
-	echo "-- Found no dependencies"
-else
-	DEPENDENCIES_JSON_LINES=$(echo "${DEPENDENCIES_JSON}" | wc -l)
-	NUM_DEPENDENCIES=$(( $DEPENDENCIES_JSON_LINES - 2 ))
-	DEPENDENCIES=$(echo "${DEPENDENCIES_JSON}" | head -n -1 | tail -n ${NUM_DEPENDENCIES} | sed -E "s,[ \t]+\"([A-Za-z0-9_]+)\"[,]?,\1,g" )
-
-	echo "-- Found $NUM_DEPENDENCIES dependencies"
-
-	for dep in $DEPENDENCIES
-	do
-		PLUGIN_PROJECT_DIR=$(find Plugins -name "${dep}.uplugin")
-		
-		if [ ! -z "${PLUGIN_PROJECT_DIR}" ]; then
-			PLUGIN_PROJECT_DIR=$(dirname ${PLUGIN_PROJECT_DIR})
-			
-			echo "    Found project plugin '${dep}' at '${PLUGIN_PROJECT_DIR}'"
-			
-			PROJECT_INCLUDE_DIRS="${PROJECT_INCLUDE_DIRS}
-	${PROJECT_DIR}/${PLUGIN_PROJECT_DIR}/Source/${dep}
-	${PROJECT_DIR}/${PLUGIN_PROJECT_DIR}/Source/${dep}/Public
-	${PROJECT_DIR}/${PLUGIN_PROJECT_DIR}/Intermediate/Build/Linux/B4D820EA/UE4Editor/Inc/${dep}"
-
-			#UE4_INCLUDE_DIRS=$(echo "$UE4_INCLUDE_DIRS" | sed -Ee "s,${UE4DIR}/${PLUGIN_PROJECT_DIR}/.+ \n,,g")
-			
-		else
-			echo "    Found engine plugin '${dep}'"
-		fi
-	done
-fi
+echo "-- Found $NUM_DEPENDENCIES dependencies"
 
 # Replace wrong project source locations
 
@@ -138,12 +112,33 @@ UE4_INCLUDE_DIRS=$(
 
 IFS=$'\n'
 
+for dep in $DEPENDENCIES
+do
+	PLUGIN_PROJECT_DIR=$(find Plugins -name "${dep}.uplugin")
+	
+	if [ ! -z "${PLUGIN_PROJECT_DIR}" ]; then
+		PLUGIN_PROJECT_DIR=$(dirname ${PLUGIN_PROJECT_DIR})
+		
+		echo "    Found project plugin '${dep}' at '${PLUGIN_PROJECT_DIR}'"
+		
+		PROJECT_INCLUDE_DIRS="${PROJECT_INCLUDE_DIRS}
+${PROJECT_DIR}/${PLUGIN_PROJECT_DIR}/Source/${dep}
+${PROJECT_DIR}/${PLUGIN_PROJECT_DIR}/Source/${dep}/Public
+${PROJECT_DIR}/${PLUGIN_PROJECT_DIR}/Intermediate/Build/Linux/B4D820EA/UE4Editor/Inc/${dep}"
+
+		#UE4_INCLUDE_DIRS=$(echo "$UE4_INCLUDE_DIRS" | sed -Ee "s,${UE4DIR}/${PLUGIN_PROJECT_DIR}/.+ \n,,g")
+		
+	else
+		echo "    Found engine plugin '${dep}'"
+	fi
+done
+
 NEWKDEV4INCLUDES=""
 
 counter=0
 for line in $PROJECT_INCLUDE_DIRS
 do
-	if [ -d "${line}" ] || [[ "${line}" == "$PROJECT_DIR/"* ]]; then
+	if [ -d "${line}" ]; then
 		counter=$(( $counter + 1 ))
 		NEWKDEV4INCLUDES="${NEWKDEV4INCLUDES}\n$counter=$line"
 	else
@@ -293,13 +288,11 @@ CLOTHINGSYSTEMRUNTIMEINTERFACE
 AUDIOMIXERCORE
 "
 
-if [ ! -z "$DEPENDENCIES" ]; then
-	for dep in $DEPENDENCIES
-	do
-		PUBLIC_API_NAMES="${PUBLIC_API_NAMES}${dep^^}
-	"
-	done
-fi
+for dep in $DEPENDENCIES
+do
+	PUBLIC_API_NAMES="${PUBLIC_API_NAMES}${dep^^}
+"
+done
 
 for name in $PUBLIC_API_NAMES
 do
@@ -328,6 +321,14 @@ NEWPROJECTFILE=$(
 	sed -e "s,Arguments=Engine,Arguments=\"$UE4DIR/Engine\",g" |
 	sed -e "s,CurrentConfiguration=BuildConfig0,CurrentConfiguration=BuildConfig$EDITORCONFIG," # Set editor as current config
 )
+
+# Set CppCheck to use system include dirs
+
+CHECK_SYS_INCLUDES=$(echo "$NEWPROJECTFILE" | grep -x "useSystemIncludes=true")
+
+if [ -z "$CHECK_SYS_INCLUDES" ]; then
+	NEWPROJECTFILE="${NEWPROJECTFILE}\n[Cppcheck]\nuseSystemIncludes=true"
+fi
 
 # Set standard to C++17
 
